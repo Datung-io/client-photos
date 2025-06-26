@@ -5,7 +5,7 @@ import json
 from tempfile import NamedTemporaryFile
 from urllib.parse import quote
 
-# Streamlit page settings
+# Page config
 st.set_page_config(page_title="Client Photo Dashboard", layout="wide")
 st.title("📸 Client Photo Dashboard")
 
@@ -16,15 +16,18 @@ with NamedTemporaryFile(mode="w+", delete=False) as tmpfile:
     tmpfile.flush()
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmpfile.name
 
-# Set GCS config
+# Constants
 BUCKET_NAME = "client-photos"
 
-# Initialize client and bucket
-client = storage.Client()
-bucket = client.bucket(BUCKET_NAME)
+# Initialize and cache GCS client and bucket
+@st.cache_resource
+def get_bucket():
+    client = storage.Client()
+    return client.bucket(BUCKET_NAME)
 
-# Utility functions
-@st.cache_data(show_spinner=False)
+bucket = get_bucket()
+
+# Extract 3-level hierarchy: batch / agent / client
 def list_all_blobs():
     return list(bucket.list_blobs())
 
@@ -37,10 +40,12 @@ def extract_hierarchy(blobs):
             hierarchy.setdefault(batch, {}).setdefault(agent, {}).setdefault(client, []).append(blob)
     return hierarchy
 
+# Display utility
 def display_images(blobs):
     if not blobs:
-        st.warning("No images found for this selection.")
+        st.warning("⚠️ No images found for this selection.")
         return
+
     cols = st.columns(3)
     for i, blob in enumerate(blobs):
         with cols[i % 3]:
@@ -49,19 +54,24 @@ def display_images(blobs):
                 label = "/".join(blob.name.split("/")[:3])
                 st.image(url, caption=label, use_container_width=True)
             except Exception as e:
-                st.error(f"Error loading image {blob.name}: {e}")
+                st.error(f"❌ Failed to load image {blob.name}: {e}")
 
-# Main UI
+# Sidebar filters
 with st.sidebar:
     st.header("🔍 Filters")
-    all_blobs = list_all_blobs()
-    hierarchy = extract_hierarchy(all_blobs)
+    with st.spinner("Fetching image data..."):
+        try:
+            all_blobs = list_all_blobs()
+            hierarchy = extract_hierarchy(all_blobs)
+        except Exception as e:
+            st.error(f"❌ Failed to load GCS data: {e}")
+            st.stop()
 
     batch = st.selectbox("Select Batch", sorted(hierarchy.keys())) if hierarchy else None
     agent = st.selectbox("Select Agent", sorted(hierarchy[batch].keys())) if batch else None
     client = st.selectbox("Select Client", sorted(hierarchy[batch][agent].keys())) if batch and agent else None
 
-# Display area
+# Main display
 if client:
     st.subheader(f"📁 Viewing: {batch} / {agent} / {client}")
     display_images(hierarchy[batch][agent][client])
@@ -74,4 +84,4 @@ elif batch:
     blobs = [b for a in hierarchy[batch].values() for c in a.values() for b in c]
     display_images(blobs)
 else:
-    st.info("Please select a batch from the sidebar to begin.")
+    st.info("👈 Please select a batch from the sidebar to begin.")
