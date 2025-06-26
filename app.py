@@ -7,7 +7,7 @@ from tempfile import NamedTemporaryFile
 st.title("Client Photo Dashboard")
 
 # Load service account JSON from Streamlit secrets
-gcs_credentials = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+gcs_credentials = st.secrets["gcp"]
 with NamedTemporaryFile(mode="w+", delete=False) as tmpfile:
     json.dump(gcs_credentials, tmpfile)
     tmpfile.flush()
