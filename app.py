@@ -48,12 +48,15 @@ def display_images(blobs):
     if not blobs:
         st.warning("⚠️ No images found for this selection.")
         return
+
     cols = st.columns(3)
     for i, blob in enumerate(blobs):
         with cols[i % 3]:
             try:
                 url = bucket.blob(blob.name).generate_signed_url(version="v4", expiration=3600)
-                st.image(url, caption="/".join(blob.name.split("/")[:3]), use_container_width=True)
+                folder = "/".join(blob.name.split("/")[:3])
+                filename = blob.name.split("/")[-1]
+                st.image(url, caption=f"{folder} / {filename}", use_container_width=True)
             except Exception as e:
                 st.error(f"❌ Failed to load image {blob.name}: {e}")
 
